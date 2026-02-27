@@ -41,12 +41,11 @@ def write_gradle_property(path: Path, key: str, new_value: str) -> None:
 def query_modrinth(
     slug: str, minecraft_version: str, mod_loader: str
 ) -> list[dict]:
-    """Query Modrinth for versions matching the given MC version and loader.
-
-    Filters by game_versions server-side and by loader client-side
-    (some projects have broken server-side loader filtering).
-    """
-    params = {"game_versions": json.dumps([minecraft_version])}
+    """Query Modrinth for versions matching the given MC version and loader."""
+    params = {
+        "game_versions": json.dumps([minecraft_version]),
+        "loaders": json.dumps([mod_loader.lower()]),
+    }
     resp = requests.get(
         f"{MODRINTH_API}/project/{slug}/version",
         params=params,
@@ -54,11 +53,7 @@ def query_modrinth(
         timeout=30,
     )
     resp.raise_for_status()
-    versions = resp.json()
-
-    # Client-side loader filter (case-insensitive)
-    loader_lower = mod_loader.lower()
-    return [v for v in versions if loader_lower in [l.lower() for l in v["loaders"]]]
+    return resp.json()
 
 
 def get_version_value(version: dict, use_id: bool) -> str:
