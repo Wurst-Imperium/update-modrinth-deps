@@ -5,7 +5,22 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from main import detect_base_branch, safe_checkout
+from main import detect_base_branch, is_usable_ci_branch_ref, safe_checkout
+
+
+class TestIsUsableCiBranchRef:
+    def test_accepts_normal_branch(self):
+        assert is_usable_ci_branch_ref("main")
+
+    def test_accepts_branch_with_slash(self):
+        assert is_usable_ci_branch_ref("feature/foo")
+
+    def test_rejects_synthetic_merge_ref(self):
+        assert not is_usable_ci_branch_ref("123/merge")
+
+    def test_rejects_empty_or_head(self):
+        assert not is_usable_ci_branch_ref("")
+        assert not is_usable_ci_branch_ref("HEAD")
 
 
 class TestDetectBaseBranch:
@@ -33,11 +48,23 @@ class TestDetectBaseBranch:
 
     @patch.dict("os.environ", {"GITHUB_BASE_REF": "", "GITHUB_REF_NAME": "123/merge"}, clear=False)
     @patch("subprocess.run")
-    def test_skips_ref_name_with_slash(self, mock_run):
-        """GITHUB_REF_NAME like '123/merge' should be skipped (not a branch name)."""
+    def test_skips_synthetic_merge_ref_name(self, mock_run):
+        """Synthetic PR merge refs like '123/merge' should be skipped."""
         # Falls through to git rev-parse
         mock_run.return_value = MagicMock(returncode=0, stdout="my-branch\n")
         assert detect_base_branch() == "my-branch"
+
+    @patch.dict("os.environ", {"GITHUB_BASE_REF": "", "GITHUB_REF_NAME": "feature/foo"}, clear=False)
+    @patch("subprocess.run")
+    def test_allows_ref_name_with_slash_for_real_branches(self, mock_run):
+        """Real branch names may contain '/' and should be accepted."""
+        mock_run.return_value = MagicMock(returncode=0)
+        assert detect_base_branch() == "feature/foo"
+        mock_run.assert_called_once_with(
+            ["git", "checkout", "-B", "feature/foo", "origin/feature/foo"],
+            capture_output=True,
+            text=True,
+        )
 
     @patch.dict("os.environ", {"GITHUB_BASE_REF": "", "GITHUB_REF_NAME": ""}, clear=False)
     @patch("subprocess.run")

@@ -15,6 +15,20 @@ MODRINTH_API = "https://api.modrinth.com/v2"
 USER_AGENT = "Wurst-Imperium/update-modrinth-deps (github.com/Wurst-Imperium)"
 
 
+def is_usable_ci_branch_ref(ref: str) -> bool:
+    """Return True if an env-provided ref looks like a real branch name.
+
+    GitHub pull_request workflows often expose synthetic refs like "123/merge".
+    Those are not stable branch names we should use as a base branch.
+    """
+    ref = ref.strip()
+    if not ref or ref == "HEAD":
+        return False
+    if re.fullmatch(r"\d+/merge", ref):
+        return False
+    return True
+
+
 def detect_line_ending(text: str) -> str:
     """Detect dominant line ending in a file's text."""
     crlf = text.count("\r\n")
@@ -121,10 +135,11 @@ def detect_base_branch() -> str:
     2. GITHUB_REF_NAME — set on push events, gives the branch name directly
     3. git rev-parse --abbrev-ref HEAD — local fallback
     """
-    # On PR events, GITHUB_REF_NAME is "123/merge" — use GITHUB_BASE_REF instead
+    # On PR events, GITHUB_REF_NAME can be synthetic (e.g. "123/merge").
+    # Prefer GITHUB_BASE_REF when available, then fall back to GITHUB_REF_NAME.
     for env_var in ("GITHUB_BASE_REF", "GITHUB_REF_NAME"):
         ref = os.environ.get(env_var, "").strip()
-        if not ref or "/" in ref:
+        if not is_usable_ci_branch_ref(ref):
             continue
         result = subprocess.run(
             ["git", "checkout", "-B", ref, f"origin/{ref}"],
