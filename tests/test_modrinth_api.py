@@ -34,32 +34,41 @@ def modrinth_versions(slug: str, mc_version: str, loader: str) -> list[dict]:
 # ── Server-side loader filtering ─────────────────────────────────────
 
 class TestLoaderFiltering:
-    """Verify that the API actually filters by loader server-side."""
+    """Verify that the API actually filters by loader server-side.
+
+    Uses cloth-config since it's available on both fabric and neoforge,
+    so broken filtering would actually show cross-loader results.
+    """
 
     def test_fabric_only_returns_fabric(self):
-        """Fabric-only query should not return forge/neoforge versions."""
-        versions = modrinth_versions("fabric-api", "1.21.4", "fabric")
+        """Fabric query on a multi-loader mod should only return fabric versions."""
+        versions = modrinth_versions("cloth-config", "1.21.4", "fabric")
         assert len(versions) > 0
         for v in versions:
             assert "fabric" in [l.lower() for l in v["loaders"]], (
                 f"Version {v['version_number']} has loaders {v['loaders']}, expected fabric"
             )
 
-    def test_loader_param_as_array_filters(self):
-        """A mod available on multiple loaders should be filtered correctly."""
-        # Cloth Config is available on both fabric and forge/neoforge
+    def test_neoforge_only_returns_neoforge(self):
+        """NeoForge query on a multi-loader mod should only return neoforge versions."""
+        versions = modrinth_versions("cloth-config", "1.21.4", "neoforge")
+        assert len(versions) > 0
+        for v in versions:
+            assert "neoforge" in [l.lower() for l in v["loaders"]], (
+                f"Version {v['version_number']} has loaders {v['loaders']}, expected neoforge"
+            )
+
+    def test_fabric_and_neoforge_return_different_results(self):
+        """Fabric and neoforge queries should not return identical version sets."""
         fabric = modrinth_versions("cloth-config", "1.21.4", "fabric")
         neoforge = modrinth_versions("cloth-config", "1.21.4", "neoforge")
-
-        if fabric and neoforge:
-            fabric_ids = {v["id"] for v in fabric}
-            neoforge_ids = {v["id"] for v in neoforge}
-            # They shouldn't be identical sets (some versions are loader-specific)
-            # At minimum, each set should only contain its loader
-            for v in fabric:
-                assert "fabric" in [l.lower() for l in v["loaders"]]
-            for v in neoforge:
-                assert "neoforge" in [l.lower() for l in v["loaders"]]
+        assert len(fabric) > 0
+        assert len(neoforge) > 0
+        fabric_ids = {v["id"] for v in fabric}
+        neoforge_ids = {v["id"] for v in neoforge}
+        assert fabric_ids != neoforge_ids, (
+            "Fabric and NeoForge returned identical version sets — filtering may not be working"
+        )
 
 
 # ── Game version filtering ───────────────────────────────────────────
