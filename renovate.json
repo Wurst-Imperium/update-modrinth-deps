@@ -1,0 +1,13 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "timezone": "Europe/Berlin",
+  "schedule": ["before 7am on Monday"],
+  "packageRules": [
+    {
+      "groupName": "all dependencies",
+      "matchManagers": ["uv", "github-actions"],
+      "matchPackagePatterns": ["*"]
+    }
+  ]
+}
