@@ -180,7 +180,7 @@ wheels = [
 
 [[package]]
 name = "update-modrinth-deps"
-version = "1.0.3"
+version = "1.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "requests" },
