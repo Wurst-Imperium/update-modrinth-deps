@@ -2,7 +2,7 @@ name: Update Modrinth Dependencies
 
 on:
   schedule:
-    - cron: "0 */6 * * *"  # Every 6 hours
+    - cron: "0 0 * * *"  # Every day at midnight (UTC)
   workflow_dispatch:
 
 permissions:
@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Update Modrinth Dependencies
-        uses: Wurst-Imperium/update-modrinth-deps@main
+        uses: Wurst-Imperium/update-modrinth-deps@v1
