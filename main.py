@@ -65,8 +65,7 @@ def query_modrinth(
     resp.raise_for_status()
     versions = resp.json()
 
-    # Filter out alpha/beta versions — only pick "release" channel
-    return [v for v in versions if v.get("version_type") == "release"]
+    return versions
 
 
 def get_version_value(version: dict, use_id: bool) -> str:
@@ -170,9 +169,24 @@ def process_dependency(
     print(f"Checking {slug} (property: {prop_key})")
     print(f"  Current: {current_value}")
 
-    versions = query_modrinth(slug, minecraft_version, mod_loader)
-    if not versions:
+    all_versions = query_modrinth(slug, minecraft_version, mod_loader)
+    if not all_versions:
         print(f"  No compatible versions found for MC {minecraft_version} + {mod_loader}")
+        return False
+
+    # Determine current version's stability level
+    # Stability ranking: release > beta > alpha
+    stability_rank = {"release": 0, "beta": 1, "alpha": 2}
+    current_type = "release"  # default: only allow releases
+    for v in all_versions:
+        if current_value in (v["version_number"], v["id"]):
+            current_type = v.get("version_type", "release")
+            break
+
+    max_rank = stability_rank.get(current_type, 0)
+    versions = [v for v in all_versions if stability_rank.get(v.get("version_type", "release"), 2) <= max_rank]
+    if not versions:
+        print(f"  No versions at stability level '{current_type}' or better")
         return False
 
     latest = versions[0]  # Modrinth returns newest first
