@@ -274,7 +274,7 @@ def process_dependency(
 
 	# Commit and push
 	display_version = latest["version_number"] if use_id else new_value
-	commit_msg = f"Update {slug} to {display_version}"
+	commit_msg = f"Update {slug} to {display_version} ({mod_loader})"
 
 	git("add", str(gradle_path))
 
