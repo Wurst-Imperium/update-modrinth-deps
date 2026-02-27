@@ -115,6 +115,7 @@ jobs:
   update-deps:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         branch: ['1.21.10', '1.21.11', '26.1']
     steps:
