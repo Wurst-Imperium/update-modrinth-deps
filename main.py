@@ -231,7 +231,7 @@ def process_dependency(
 	print(f"     Published: {latest['date_published']}")
 
 	# Create or update the PR branch
-	branch = f"modrinth-deps/{slug}"
+	branch = f"modrinth-deps/{base_branch}/{slug}"
 
 	# Start from the base branch (force-reset to clean state)
 	git("checkout", base_branch)
