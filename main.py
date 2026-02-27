@@ -37,7 +37,7 @@ def read_gradle_properties(path: Path) -> dict[str, str]:
 
 def write_gradle_property(path: Path, key: str, new_value: str) -> None:
     """Update a single key in gradle.properties, preserving formatting and line endings."""
-    raw = path.read_text()
+    raw = path.read_bytes().decode("utf-8")
     eol = detect_line_ending(raw)
     lines = raw.splitlines(keepends=True)
     pattern = re.compile(rf"^{re.escape(key)}\s*=")
@@ -45,7 +45,7 @@ def write_gradle_property(path: Path, key: str, new_value: str) -> None:
         if pattern.match(line):
             lines[i] = f"{key}={new_value}{eol}"
             break
-    path.write_text("".join(lines))
+    path.write_bytes("".join(lines).encode("utf-8"))
 
 
 def query_modrinth(

@@ -6,6 +6,17 @@ dependencies = [
     "requests>=2.32,<3",
 ]
 
+[dependency-groups]
+dev = [
+    "pytest>=8,<9",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "network: tests that hit the real Modrinth API",
+]
+
 [tool.uv]
 # Lock for all platforms so CI (x86_64) works from an arm64 dev machine
 environments = ["sys_platform == 'linux'"]
