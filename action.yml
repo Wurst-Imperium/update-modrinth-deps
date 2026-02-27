@@ -1,0 +1,30 @@
+name: Update Modrinth Dependencies
+description: Check for dependency updates on Modrinth and open PRs
+
+inputs:
+  config:
+    description: Path to the JSON config file mapping gradle.properties keys to Modrinth slugs
+    default: modrinth_deps.json
+  gradle-properties:
+    description: Path to gradle.properties
+    default: gradle.properties
+
+runs:
+  using: composite
+  steps:
+
+  - name: Set up uv
+    uses: astral-sh/setup-uv@v7
+    with:
+      enable-cache: true
+      working-directory: ${{ github.action_path }}
+
+  - name: Run main.py
+    shell: bash
+    env:
+      GH_TOKEN: ${{ github.token }}
+    run: |
+      uv run --locked --project "${{ github.action_path }}" \
+        "${{ github.action_path }}/main.py" \
+        --config "${{ inputs.config }}" \
+        --gradle-properties "${{ inputs.gradle-properties }}"

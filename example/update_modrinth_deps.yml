@@ -1,0 +1,20 @@
+name: Update Modrinth Dependencies
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"  # Every 6 hours
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-deps:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update Modrinth Dependencies
+        uses: Wurst-Imperium/update-modrinth-deps@main
