@@ -114,16 +114,27 @@ def pr_exists(branch: str) -> bool:
 
 
 def detect_base_branch() -> str:
-    """Detect the base branch, handling detached HEAD in GitHub Actions."""
-    # Prefer GITHUB_REF_NAME in CI
-    ref_name = os.environ.get("GITHUB_REF_NAME")
-    if ref_name:
-        # Ensure local branch exists tracking the remote
-        subprocess.run(
-            ["git", "checkout", "-B", ref_name, f"origin/{ref_name}"],
+    """Detect the base branch, handling detached HEAD in GitHub Actions.
+
+    Priority:
+    1. GITHUB_BASE_REF — set on pull_request events, points to the PR target branch
+    2. GITHUB_REF_NAME — set on push events, gives the branch name directly
+    3. git rev-parse --abbrev-ref HEAD — local fallback
+    """
+    # On PR events, GITHUB_REF_NAME is "123/merge" — use GITHUB_BASE_REF instead
+    for env_var in ("GITHUB_BASE_REF", "GITHUB_REF_NAME"):
+        ref = os.environ.get(env_var, "").strip()
+        if not ref or "/" in ref:
+            continue
+        result = subprocess.run(
+            ["git", "checkout", "-B", ref, f"origin/{ref}"],
             capture_output=True,
+            text=True,
         )
-        return ref_name
+        if result.returncode != 0:
+            print(f"❌ Failed to checkout {ref} from {env_var}: {result.stderr.strip()}")
+            sys.exit(1)
+        return ref
 
     # Fallback: current branch name
     result = subprocess.run(
@@ -134,7 +145,7 @@ def detect_base_branch() -> str:
     )
     branch = result.stdout.strip()
     if branch == "HEAD":
-        print("❌ Detached HEAD and GITHUB_REF_NAME not set. Cannot determine base branch.")
+        print("❌ Detached HEAD and no usable GITHUB_BASE_REF/GITHUB_REF_NAME. Cannot determine base branch.")
         sys.exit(1)
     return branch
 
