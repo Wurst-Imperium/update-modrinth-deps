@@ -1,0 +1,32 @@
+name: Tests
+
+on:
+  push:
+    branches-ignore:
+      - "dependabot/**"
+    tags-ignore:
+    - "**"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Run unit tests
+        run: uv run --group dev pytest tests/test_unit.py -v
+
+      - name: Run branch detection tests
+        run: uv run --group dev pytest tests/test_branch_detection.py -v
+
+      - name: Run API assumption tests
+        run: uv run --group dev pytest tests/test_modrinth_api.py -v
+
+      - name: Run integration tests
+        run: uv run --group dev pytest tests/test_integration.py -v

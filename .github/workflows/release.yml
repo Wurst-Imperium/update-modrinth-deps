@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  # Needed to push changes
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      
+    - name: Checkout repository
+      uses: actions/checkout@v6
+      with:
+        # Include all branches and tags
+        fetch-depth: 0
+
+    - name: Assert branch is master
+      run: |
+        if [ "$(git rev-parse --abbrev-ref HEAD)" != "master" ]; then
+          echo "::error::Release workflow can only be run on the master branch"
+          exit 1
+        fi
+
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v7
+      with:
+        enable-cache: true
+
+    - name: Assert lock file is up to date
+      run: uv lock --check
+
+    - name: Get version
+      id: get_version
+      run: |
+        uv tool install toml-cli
+        VERSION=$(toml get --toml-path pyproject.toml project.version)
+        # Official regex from https://semver.org/
+        if ! echo "$VERSION" | grep -qP '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$'; then
+          echo "::error::Invalid version format: $VERSION"
+          exit 1
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "major=$(echo "$VERSION" | cut -d'.' -f1)" >> $GITHUB_OUTPUT
+
+    - name: Create and push tag
+      run: |
+        TAG_NAME=v${{ steps.get_version.outputs.version }}
+        git config --global user.name "Wurst-Bot"
+        git config --global user.email "contact.wurstimperium@gmail.com"
+        git tag $TAG_NAME
+        git push origin $TAG_NAME
+
+    - name: Update major version branch
+      run: |
+        BRANCH_NAME=v${{ steps.get_version.outputs.major }}
+        git checkout -B $BRANCH_NAME
+        git merge master
+        git push origin $BRANCH_NAME
