@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -12,6 +13,13 @@ import requests
 
 MODRINTH_API = "https://api.modrinth.com/v2"
 USER_AGENT = "Wurst-Imperium/update-modrinth-deps (github.com/Wurst-Imperium)"
+
+
+def detect_line_ending(text: str) -> str:
+    """Detect dominant line ending in a file's text."""
+    crlf = text.count("\r\n")
+    lf = text.count("\n") - crlf
+    return "\r\n" if crlf > lf else "\n"
 
 
 def read_gradle_properties(path: Path) -> dict[str, str]:
@@ -28,12 +36,14 @@ def read_gradle_properties(path: Path) -> dict[str, str]:
 
 
 def write_gradle_property(path: Path, key: str, new_value: str) -> None:
-    """Update a single key in gradle.properties, preserving formatting."""
-    lines = path.read_text().splitlines(keepends=True)
+    """Update a single key in gradle.properties, preserving formatting and line endings."""
+    raw = path.read_text()
+    eol = detect_line_ending(raw)
+    lines = raw.splitlines(keepends=True)
     pattern = re.compile(rf"^{re.escape(key)}\s*=")
     for i, line in enumerate(lines):
         if pattern.match(line):
-            lines[i] = f"{key}={new_value}\n"
+            lines[i] = f"{key}={new_value}{eol}"
             break
     path.write_text("".join(lines))
 
@@ -53,7 +63,10 @@ def query_modrinth(
         timeout=30,
     )
     resp.raise_for_status()
-    return resp.json()
+    versions = resp.json()
+
+    # Filter out alpha/beta versions — only pick "release" channel
+    return [v for v in versions if v.get("version_type") == "release"]
 
 
 def get_version_value(version: dict, use_id: bool) -> str:
@@ -83,7 +96,7 @@ def branch_exists_on_remote(branch: str) -> bool:
         capture_output=True,
         text=True,
     )
-    return branch in result.stdout
+    return f"refs/heads/{branch}\n" in result.stdout or result.stdout.rstrip().endswith(f"refs/heads/{branch}")
 
 
 def pr_exists(branch: str) -> bool:
@@ -99,6 +112,40 @@ def pr_exists(branch: str) -> bool:
         return state == "OPEN"
     except (json.JSONDecodeError, KeyError):
         return False
+
+
+def detect_base_branch() -> str:
+    """Detect the base branch, handling detached HEAD in GitHub Actions."""
+    # Prefer GITHUB_REF_NAME in CI
+    ref_name = os.environ.get("GITHUB_REF_NAME")
+    if ref_name:
+        # Ensure local branch exists tracking the remote
+        subprocess.run(
+            ["git", "checkout", "-B", ref_name, f"origin/{ref_name}"],
+            capture_output=True,
+        )
+        return ref_name
+
+    # Fallback: current branch name
+    result = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    branch = result.stdout.strip()
+    if branch == "HEAD":
+        print("❌ Detached HEAD and GITHUB_REF_NAME not set. Cannot determine base branch.")
+        sys.exit(1)
+    return branch
+
+
+def safe_checkout(branch: str) -> None:
+    """Checkout a branch, discarding local changes. Silently ignores errors."""
+    subprocess.run(
+        ["git", "checkout", "-f", branch],
+        capture_output=True,
+    )
 
 
 def process_dependency(
@@ -143,12 +190,14 @@ def process_dependency(
     # Create or update the PR branch
     branch = f"modrinth-deps/{slug}"
 
-    # Start from the base branch
+    # Start from the base branch (force-reset to clean state)
     git("checkout", base_branch)
     git("pull", "--ff-only", "origin", base_branch)
 
     if branch_exists_on_remote(branch):
-        # Update existing branch
+        # Force-reset branch to base — intentional: we always rebuild from
+        # the latest base branch to avoid merge conflicts. Any manual edits
+        # on the PR branch will be overwritten.
         git("checkout", "-B", branch, f"origin/{base_branch}")
     else:
         git("checkout", "-b", branch)
@@ -255,14 +304,8 @@ def main() -> None:
         "41898282+github-actions[bot]@users.noreply.github.com",
     )
 
-    # Detect base branch
-    result = subprocess.run(
-        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    base_branch = result.stdout.strip()
+    # Detect base branch (handles detached HEAD in CI)
+    base_branch = detect_base_branch()
     print(f"Base branch: {base_branch}")
 
     updated = 0
@@ -283,7 +326,7 @@ def main() -> None:
                 updated += 1
         except Exception as e:
             print(f"  ❌ Error: {e}")
-            git("checkout", base_branch)
+            safe_checkout(base_branch)
             continue
 
     print(f"\n{'='*60}")
