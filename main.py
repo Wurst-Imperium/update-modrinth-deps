@@ -127,12 +127,46 @@ def detect_base_branch() -> str:
 	"""Detect the base branch, handling detached HEAD in GitHub Actions.
 
 	Priority:
-	1. GITHUB_BASE_REF — set on pull_request events, points to the PR target branch
-	2. GITHUB_REF_NAME — set on push events, gives the branch name directly
-	3. git rev-parse --abbrev-ref HEAD — local fallback
+	1. git rev-parse --abbrev-ref HEAD — if we're on a named branch, use it
+	2. git branch -r --contains HEAD — find which remote branch HEAD matches
+		(handles detached HEAD after actions/checkout with a specific ref)
+	3. GITHUB_BASE_REF / GITHUB_REF_NAME — CI env var fallbacks
 	"""
-	# On PR events, GITHUB_REF_NAME can be synthetic (e.g. "123/merge").
-	# Prefer GITHUB_BASE_REF when available, then fall back to GITHUB_REF_NAME.
+	# 1. Check if we're on a named branch already
+	result = subprocess.run(
+		["git", "rev-parse", "--abbrev-ref", "HEAD"],
+		capture_output=True,
+		text=True,
+		check=True,
+	)
+	branch = result.stdout.strip()
+	if branch != "HEAD":
+		return branch
+
+	# 2. Detached HEAD — find which remote branch points to the same commit
+	result = subprocess.run(
+		["git", "branch", "-r", "--points-at", "HEAD"],
+		capture_output=True,
+		text=True,
+	)
+	if result.returncode == 0:
+		for line in result.stdout.splitlines():
+			ref = line.strip()
+			# Skip HEAD pointer (e.g. "origin/HEAD -> origin/master")
+			if "->" in ref:
+				continue
+			if ref.startswith("origin/"):
+				branch_name = ref[len("origin/") :]
+				# Create a local branch tracking the remote
+				checkout = subprocess.run(
+					["git", "checkout", "-B", branch_name, ref],
+					capture_output=True,
+					text=True,
+				)
+				if checkout.returncode == 0:
+					return branch_name
+
+	# 3. Fall back to CI env vars
 	for env_var in ("GITHUB_BASE_REF", "GITHUB_REF_NAME"):
 		ref = os.environ.get(env_var, "").strip()
 		if not is_usable_ci_branch_ref(ref):
@@ -147,21 +181,11 @@ def detect_base_branch() -> str:
 			sys.exit(1)
 		return ref
 
-	# Fallback: current branch name
-	result = subprocess.run(
-		["git", "rev-parse", "--abbrev-ref", "HEAD"],
-		capture_output=True,
-		text=True,
-		check=True,
+	print(
+		"❌ Cannot determine base branch: detached HEAD, no matching remote branch,"
+		" and no usable GITHUB_BASE_REF/GITHUB_REF_NAME."
 	)
-	branch = result.stdout.strip()
-	if branch == "HEAD":
-		print(
-			"❌ Detached HEAD and no usable GITHUB_BASE_REF/GITHUB_REF_NAME."
-			" Cannot determine base branch."
-		)
-		sys.exit(1)
-	return branch
+	sys.exit(1)
 
 
 def safe_checkout(branch: str) -> None:
