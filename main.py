@@ -77,11 +77,24 @@ def query_modrinth(slug: str, minecraft_version: str, mod_loader: str) -> list[d
 	return versions
 
 
-def get_version_value(version: dict, use_id: bool) -> str:
+def apply_version_transform(version_string: str, transform: dict | None) -> str:
+	"""Apply a regex transformation to a Modrinth version string.
+
+	Used when the Modrinth version_number doesn't match the format expected
+	by gradle.properties.
+	"""
+	if not transform:
+		return version_string
+	pattern = transform.get("pattern", "")
+	replacement = transform.get("replacement", "")
+	return re.sub(pattern, replacement, version_string)
+
+
+def get_version_value(version: dict, use_id: bool, transform: dict | None = None) -> str:
 	"""Get the value to write to gradle.properties."""
 	if use_id:
 		return version["id"]
-	return version["version_number"]
+	return apply_version_transform(version["version_number"], transform)
 
 
 def run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
@@ -208,6 +221,7 @@ def process_dependency(
 	"""Check and update a single dependency. Returns True if a PR was created/updated."""
 	slug = dep_config["slug"]
 	use_id = dep_config.get("use_id", False)
+	transform = dep_config.get("version_transform")
 	current_value = props.get(prop_key)
 
 	if current_value is None:
@@ -228,7 +242,11 @@ def process_dependency(
 	stability_rank = {"release": 0, "beta": 1, "alpha": 2}
 	current_type = "release"  # default: only allow releases
 	for v in all_versions:
-		if current_value in (v["version_number"], v["id"]):
+		if current_value in (
+			v["version_number"],
+			apply_version_transform(v["version_number"], transform),
+			v["id"],
+		):
 			current_type = v.get("version_type", "release")
 			break
 
@@ -243,13 +261,16 @@ def process_dependency(
 		return False
 
 	latest = versions[0]  # Modrinth returns newest first
-	new_value = get_version_value(latest, use_id)
 
 	# Check if current value matches either version_number or id
-	if current_value in (latest["version_number"], latest["id"]):
+	if current_value in (
+		apply_version_transform(latest["version_number"], transform),
+		latest["id"],
+	):
 		print("  ✅ Already up to date")
 		return False
 
+	new_value = get_version_value(latest, use_id, transform)
 	print(f"  🆕 Update available: {new_value}")
 	print(f"     Name: {latest['name']}")
 	print(f"     Published: {latest['date_published']}")

@@ -1,6 +1,7 @@
 """Unit tests for pure functions — no network, no git."""
 
 from main import (
+	apply_version_transform,
 	detect_line_ending,
 	get_version_value,
 	read_gradle_properties,
@@ -120,6 +121,30 @@ class TestWriteGradleProperty:
 # ── get_version_value ────────────────────────────────────────────────
 
 
+class TestApplyVersionTransform:
+	def test_no_transform(self):
+		assert apply_version_transform("21.11.153+neoforge", None) == "21.11.153+neoforge"
+
+	def test_strip_plus_suffix(self):
+		transform = {"pattern": r"\+.*$", "replacement": ""}
+		assert apply_version_transform("21.11.153+neoforge", transform) == "21.11.153"
+
+	def test_strip_fabric_suffix(self):
+		transform = {"pattern": r"\+.*$", "replacement": ""}
+		assert apply_version_transform("21.11.153+fabric", transform) == "21.11.153"
+
+	def test_no_match(self):
+		transform = {"pattern": r"\+.*$", "replacement": ""}
+		assert apply_version_transform("21.11.153", transform) == "21.11.153"
+
+	def test_custom_replacement(self):
+		transform = {"pattern": r"\+neoforge", "replacement": "-nf"}
+		assert apply_version_transform("21.11.153+neoforge", transform) == "21.11.153-nf"
+
+	def test_empty_transform(self):
+		assert apply_version_transform("21.11.153", {}) == "21.11.153"
+
+
 class TestGetVersionValue:
 	def test_version_number(self):
 		v = {"id": "abc123", "version_number": "1.0.0"}
@@ -128,3 +153,13 @@ class TestGetVersionValue:
 	def test_id(self):
 		v = {"id": "abc123", "version_number": "1.0.0"}
 		assert get_version_value(v, use_id=True) == "abc123"
+
+	def test_with_transform(self):
+		v = {"id": "abc123", "version_number": "21.11.153+neoforge"}
+		transform = {"pattern": r"\+.*$", "replacement": ""}
+		assert get_version_value(v, use_id=False, transform=transform) == "21.11.153"
+
+	def test_id_ignores_transform(self):
+		v = {"id": "abc123", "version_number": "21.11.153+neoforge"}
+		transform = {"pattern": r"\+.*$", "replacement": ""}
+		assert get_version_value(v, use_id=True, transform=transform) == "abc123"

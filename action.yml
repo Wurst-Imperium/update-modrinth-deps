@@ -8,6 +8,12 @@ inputs:
   gradle-properties:
     description: Path to gradle.properties
     default: gradle.properties
+  token:
+    description: >
+      GitHub token for creating PRs. The default GITHUB_TOKEN will NOT trigger
+      CI on created PRs (GitHub prevents recursive workflows). Pass a PAT or
+      GitHub App token to ensure CI runs on the PRs.
+    default: ${{ github.token }}
 
 runs:
   using: composite
@@ -22,7 +28,7 @@ runs:
   - name: Run main.py
     shell: bash
     env:
-      GH_TOKEN: ${{ github.token }}
+      GH_TOKEN: ${{ inputs.token }}
     run: |
       uv run --locked --project "${{ github.action_path }}" \
         "${{ github.action_path }}/main.py" \
