@@ -397,6 +397,7 @@ def main() -> None:
 	print(f"Base branch: {base_branch}")
 
 	updated = 0
+	errors = 0
 	for prop_key, dep_config in config.items():
 		# Allow shorthand: just a slug string instead of full config object
 		if isinstance(dep_config, str):
@@ -414,11 +415,15 @@ def main() -> None:
 				updated += 1
 		except Exception as e:
 			print(f"  ❌ Error: {e}")
+			errors += 1
 			safe_checkout(base_branch)
 			continue
 
 	print(f"\n{'=' * 60}")
 	print(f"Done. {updated} PR(s) created/updated.")
+	if errors:
+		print(f"⚠️  {errors} dependency update(s) failed.")
+		sys.exit(1)
 
 
 if __name__ == "__main__":
