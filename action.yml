@@ -25,17 +25,6 @@ runs:
       enable-cache: true
       working-directory: ${{ github.action_path }}
 
-  - name: Configure git credentials
-    shell: bash
-    env:
-      GH_TOKEN: ${{ inputs.token }}
-    run: |
-      # Remove the default GITHUB_TOKEN credentials set by actions/checkout
-      # and use gh CLI as the credential helper instead, so git operations
-      # use the provided token (which may be a PAT for triggering CI on PRs)
-      git config --local --unset-all http.https://github.com/.extraheader || true
-      gh auth setup-git
-
   - name: Run main.py
     shell: bash
     env:
