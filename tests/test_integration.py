@@ -65,9 +65,18 @@ class TestProcessDependencyMocked:
 	@patch("main.branch_exists_on_remote", return_value=False)
 	@patch("main.pr_exists", return_value=False)
 	@patch("main.gh")
+	@patch("main.push_branch")
 	@patch("subprocess.run")
 	def test_creates_pr_when_update_available(
-		self, mock_subrun, mock_gh, mock_pr, mock_branch, mock_git, mock_query, tmp_path
+		self,
+		mock_subrun,
+		mock_push,
+		mock_gh,
+		mock_pr,
+		mock_branch,
+		mock_git,
+		mock_query,
+		tmp_path,
 	):
 		mock_query.return_value = self._make_versions("2.0.0")
 		# git diff --cached --quiet returns 1 (changes exist)
@@ -86,6 +95,7 @@ class TestProcessDependencyMocked:
 			"main",
 		)
 		assert result is True
+		mock_push.assert_called_once_with("modrinth-deps/main/test-mod")
 		# Verify PR was created via gh
 		mock_gh.assert_called()
 
@@ -208,9 +218,18 @@ class TestProcessDependencyMocked:
 	@patch("main.branch_exists_on_remote", return_value=False)
 	@patch("main.pr_exists", return_value=False)
 	@patch("main.gh")
+	@patch("main.push_branch")
 	@patch("subprocess.run")
 	def test_stability_filtering_allows_beta_when_on_beta(
-		self, mock_subrun, mock_gh, mock_pr, mock_branch, mock_git, mock_query, tmp_path
+		self,
+		mock_subrun,
+		mock_push,
+		mock_gh,
+		mock_pr,
+		mock_branch,
+		mock_git,
+		mock_query,
+		tmp_path,
 	):
 		"""If current is a beta, a newer beta should be picked."""
 		mock_query.return_value = [
@@ -248,3 +267,45 @@ class TestProcessDependencyMocked:
 			"main",
 		)
 		assert result is True
+		mock_push.assert_called_once_with("modrinth-deps/main/test-mod")
+
+	@patch("main.query_modrinth")
+	@patch("main.git")
+	@patch("main.branch_exists_on_remote", return_value=True)
+	@patch("main.pr_exists", return_value=True)
+	@patch("main.gh")
+	@patch("main.push_branch")
+	@patch("subprocess.run")
+	def test_updates_existing_pr_branch_when_remote_branch_exists(
+		self,
+		mock_subrun,
+		mock_push,
+		mock_gh,
+		mock_pr,
+		mock_branch,
+		mock_git,
+		mock_query,
+		tmp_path,
+	):
+		mock_query.return_value = self._make_versions("2.0.0")
+		mock_subrun.return_value = MagicMock(returncode=1)
+
+		gradle = tmp_path / "gradle.properties"
+		gradle.write_text("dep_version=1.0.0\nminecraft_version=1.21.4\nmod_loader=fabric\n")
+
+		result = process_dependency(
+			"dep_version",
+			{"slug": "test-mod"},
+			gradle,
+			{"dep_version": "1.0.0"},
+			"1.21.4",
+			"fabric",
+			"main",
+		)
+
+		assert result is True
+		mock_git.assert_any_call("checkout", "main")
+		mock_git.assert_any_call("pull", "--ff-only", "origin", "main")
+		mock_git.assert_any_call("checkout", "-B", "modrinth-deps/main/test-mod", "origin/main")
+		mock_push.assert_called_once_with("modrinth-deps/main/test-mod")
+		mock_gh.assert_called()

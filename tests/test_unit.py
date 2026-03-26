@@ -3,11 +3,14 @@
 from main import (
 	apply_version_transform,
 	detect_line_ending,
+	get_remote_branch_head,
 	get_version_value,
+	push_branch,
 	read_gradle_properties,
 	write_gradle_property,
 )
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 # ── detect_line_ending ───────────────────────────────────────────────
 
@@ -163,3 +166,46 @@ class TestGetVersionValue:
 		v = {"id": "abc123", "version_number": "21.11.153+neoforge"}
 		transform = {"pattern": r"\+.*$", "replacement": ""}
 		assert get_version_value(v, use_id=True, transform=transform) == "abc123"
+
+
+# ── remote branch / push helpers ────────────────────────────────────
+
+
+class TestRemoteBranchHelpers:
+	@patch("subprocess.run")
+	def test_get_remote_branch_head_parses_exact_match(self, mock_run):
+		mock_run.return_value = MagicMock(
+			stdout=(
+				"deadbeef1234567890\trefs/heads/modrinth-deps/main/modmenu\n"
+				"cafebabe1234567890\trefs/heads/something-else\n"
+			)
+		)
+
+		assert get_remote_branch_head("modrinth-deps/main/modmenu") == "deadbeef1234567890"
+
+	@patch("subprocess.run")
+	def test_get_remote_branch_head_returns_none_when_missing(self, mock_run):
+		mock_run.return_value = MagicMock(stdout="")
+		assert get_remote_branch_head("modrinth-deps/main/modmenu") is None
+
+	@patch("main.git")
+	@patch("main.get_remote_branch_head", return_value="deadbeef1234567890")
+	def test_push_branch_uses_explicit_lease_for_existing_branch(self, mock_head, mock_git):
+		push_branch("modrinth-deps/main/modmenu")
+		mock_git.assert_called_once_with(
+			"push",
+			"--force-with-lease=refs/heads/modrinth-deps/main/modmenu:deadbeef1234567890",
+			"origin",
+			"modrinth-deps/main/modmenu",
+		)
+
+	@patch("main.git")
+	@patch("main.get_remote_branch_head", return_value=None)
+	def test_push_branch_uses_regular_force_with_lease_for_new_branch(self, mock_head, mock_git):
+		push_branch("modrinth-deps/main/modmenu")
+		mock_git.assert_called_once_with(
+			"push",
+			"--force-with-lease",
+			"origin",
+			"modrinth-deps/main/modmenu",
+		)

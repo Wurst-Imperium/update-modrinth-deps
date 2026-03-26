@@ -111,14 +111,30 @@ def gh(*args: str, **kwargs) -> subprocess.CompletedProcess:
 	return run(["gh", *args], **kwargs)
 
 
-def branch_exists_on_remote(branch: str) -> bool:
+def get_remote_branch_head(branch: str) -> str | None:
 	result = subprocess.run(
 		["git", "ls-remote", "--heads", "origin", branch],
 		capture_output=True,
 		text=True,
 	)
 	expected = f"refs/heads/{branch}"
-	return f"{expected}\n" in result.stdout or result.stdout.rstrip().endswith(expected)
+	for line in result.stdout.splitlines():
+		sha, sep, ref = line.partition("\t")
+		if sep and ref == expected:
+			return sha
+	return None
+
+
+def branch_exists_on_remote(branch: str) -> bool:
+	return get_remote_branch_head(branch) is not None
+
+
+def push_branch(branch: str) -> None:
+	remote_sha = get_remote_branch_head(branch)
+	if remote_sha:
+		git("push", f"--force-with-lease=refs/heads/{branch}:{remote_sha}", "origin", branch)
+	else:
+		git("push", "--force-with-lease", "origin", branch)
 
 
 def pr_exists(branch: str) -> bool:
@@ -307,7 +323,7 @@ def process_dependency(
 		return False
 
 	git("commit", "-m", commit_msg)
-	git("push", "--force-with-lease", "origin", branch)
+	push_branch(branch)
 
 	# Create or update PR
 	pr_title = commit_msg
