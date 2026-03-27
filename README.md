@@ -19,10 +19,6 @@ on:
     - cron: "0 0 * * *"  # Every day at midnight (UTC)
   workflow_dispatch:
 
-permissions:
-  # Needed to edit gradle.properties on the PR branches
-  contents: write
-
 jobs:
   update-deps:
     runs-on: ubuntu-latest
@@ -35,7 +31,7 @@ jobs:
           token: ${{ secrets.PR_TOKEN }}
 ```
 
-For the `PR_TOKEN` secret, generate a [Personal Access Token](https://github.com/settings/personal-access-tokens) with `pull-requests: write` permission. (See below if you want to use the default `GITHUB_TOKEN` instead, but be aware that a PAT is required if you want CI to run on the generated PRs.)
+For the `PR_TOKEN` secret, generate a [Personal Access Token](https://github.com/settings/personal-access-tokens) with `contents: write` and `pull-requests: write` permissions. (See below if you want to use the default `GITHUB_TOKEN` instead, but be aware that a PAT is required if you want CI to run on the generated PRs.)
 
 **Note:** Older versions had a manual `actions/checkout` step instead of the `ref` input. This is no longer recommended as it can cause skipped CI runs on the generated PRs.
 
@@ -116,10 +112,6 @@ on:
   schedule:
     - cron: "0 0 * * *"  # Every day at midnight (UTC)
   workflow_dispatch:
-
-permissions:
-  # Needed to edit gradle.properties on the PR branches
-  contents: write
 
 jobs:
   update-deps:
