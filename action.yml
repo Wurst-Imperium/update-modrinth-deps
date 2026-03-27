@@ -8,6 +8,12 @@ inputs:
   gradle-properties:
     description: Path to gradle.properties
     default: gradle.properties
+  ref:
+    description: >
+      Optional branch/ref to check out before running. If set, this action
+      runs actions/checkout itself using the provided token. If omitted, the
+      repository is assumed to have been checked out already by an earlier step.
+    default: ""
   token:
     description: >
       GitHub token for creating PRs. The default GITHUB_TOKEN will NOT trigger
@@ -18,6 +24,14 @@ inputs:
 runs:
   using: composite
   steps:
+
+  - name: Checkout repository
+    if: ${{ inputs.ref != '' }}
+    uses: actions/checkout@v6
+    with:
+      ref: ${{ inputs.ref }}
+      token: ${{ inputs.token }}
+      persist-credentials: true
 
   - name: Set up uv
     uses: astral-sh/setup-uv@v7

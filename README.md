@@ -27,17 +27,17 @@ jobs:
   update-deps:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
       - name: Update Modrinth Dependencies
         uses: Wurst-Imperium/update-modrinth-deps@v1
         with:
+          ref: ${{ github.ref_name }}
           # Needed to have CI run against the generated PRs
           token: ${{ secrets.PR_TOKEN }}
 ```
 
 For the `PR_TOKEN` secret, generate a [Personal Access Token](https://github.com/settings/personal-access-tokens) with `pull-requests: write` permission. (See below if you want to use the default `GITHUB_TOKEN` instead, but be aware that a PAT is required if you want CI to run on the generated PRs.)
+
+**Note:** Older versions had a manual `actions/checkout` step instead of the `ref` input. This is no longer recommended as it can cause skipped CI runs on the generated PRs.
 
 Then add a `modrinth_deps.json` config file that maps your `gradle.properties` keys to Modrinth slugs:
 
@@ -129,14 +129,10 @@ jobs:
       matrix:
         branch: ['1.21.10', '1.21.11', '26.1']
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ matrix.branch }}
-
       - name: Update Modrinth Dependencies
         uses: Wurst-Imperium/update-modrinth-deps@v1
         with:
+          ref: ${{ matrix.branch }}
           # Needed to have CI run against the generated PRs
           token: ${{ secrets.PR_TOKEN }}
 ```
@@ -164,11 +160,10 @@ jobs:
   update-deps:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
       - name: Update Modrinth Dependencies
         uses: Wurst-Imperium/update-modrinth-deps@v1
+        with:
+          ref: ${{ github.ref_name }}
 ```
 
 ## Limitations
